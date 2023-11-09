@@ -1,8 +1,8 @@
 /**
  *	Utilities for handling HTML
  *
- *	@author	Rishi Salvi
- *	@since	October 31, 2023
+ *	@author	
+ *	@since	
  */
 public class HTMLUtilities {
 
@@ -17,42 +17,117 @@ public class HTMLUtilities {
 	public String[] tokenizeHTMLString(String str) {
 		// make the size of the array large to start
 		String[] result = new String[10000];
-		
-		int counter = 0; 
-		int parser = 0; 
+
+		int parser = 0;
+		String current = "";
+		int numTags = 0;
+		boolean isTag = false;
+		boolean isWord = false; 
+		boolean isNumber = false; 
+		boolean isDecimal = false; 
+		boolean hasHyphen = false;
 		while (parser < str.length()){
-			if (str.charAt(parser) == '<'){
-				int tagStart = parser;
-				while (str.charAt(parser) != '>')
-					parser++;
-				result[counter] = str.substring(tagStart, parser + 1);
-				counter++;
+			String checkWhitespace = "" + str.charAt(parser);
+			if (checkWhitespace.trim().equals(""))
+				parser++;
+			else if (str.charAt(parser) == '<'){
+				isTag = true;
+				while (isTag){
+					current += str.charAt(parser);
+					if (str.charAt(parser) == '>'){
+						isTag = false;
+						result[numTags] = current;
+						current = "";
+						numTags++; 
+					}
+					parser++; 
+				}
 			}
 			else if (Character.isLetter(str.charAt(parser))){
-				int wordStart = parser;
-				while (parser < str.length() && Character.isLetter(str.charAt(parser)))
-					parser++; 
-				result[counter] = str.substring(wordStart, parser);
-				counter++; 
+				isWord = true;
+				while (isWord){
+					if (parser == str.length() || !Character.isLetter(str.charAt(parser))){
+						if (!hasHyphen && (parser < str.length() && str.charAt(parser) == '-')){
+							hasHyphen = true;
+							current += str.charAt(parser);
+							parser++;
+						}
+						else{
+							isWord = false;
+							hasHyphen = false;
+							result[numTags] = current;
+							current = "";
+							numTags++; 
+						}
+					}
+					else{
+						current += str.charAt(parser);
+						parser++;
+					}
+				}
 			}
 			else if (Character.isDigit(str.charAt(parser))){
-				int numStart = parser;
-				while (parser < str.length() && str.charAt(parser) != ' ')
-					parser++; 
-				result[counter] = str.substring(numStart, parser);
-				counter++; 
+				isNumber = true;
+				while (isNumber){
+					if (parser > 0 && str.charAt(parser - 1) == '-'){
+						if (current.equals(""))
+							current += "-";
+					}
+					if (Character.isDigit(str.charAt(parser)))
+						current += str.charAt(parser);
+					else if (str.charAt(parser) == '.'){
+						if (!isDecimal){
+							current += str.charAt(parser);
+							isDecimal = true;
+						}
+						else{
+							isNumber = false; 
+							isDecimal = false; 
+							result[numTags] = current;
+							current = "";
+							numTags++;
+						}
+					}
+					else if (str.charAt(parser) == 'e' && 
+						(str.charAt(parser + 1) == '-' || Character.isDigit(str.charAt(parser + 1)))){
+						current += str.charAt(parser);
+						parser++; 
+						current += str.charAt(parser);
+					}
+					else{
+						isNumber = false; 
+						isDecimal = false; 
+						result[numTags] = current;
+						current = "";
+						numTags++;
+					}
+					if (isNumber)
+						parser++; 
+					if (parser == str.length()){
+						isNumber = false; 
+						isDecimal = false; 
+						result[numTags] = current;
+						current = "";
+						numTags++;
+					}
+				}
 			}
-			else if (!Character.isLetterOrDigit(str.charAt(parser))){
-				result[counter] = "" + str.charAt(parser);
-				counter++; 
+			else{
+				if (parser < str.length() - 1 && 
+					(Character.isDigit(str.charAt(parser + 1)) || (str.charAt(parser) == '<'))){}
+				else{
+					result[numTags] = "" + str.charAt(parser);
+					current = "";
+					numTags++;
+				}
+				parser++;
 			}
-			parser++;
 		}
 		
-		String[] correct = new String[counter];
-		for (int i = 0; i < counter; i++)
+		String[] correct = new String[numTags];
+		for (int i = 0; i < numTags; i++)
 			correct[i] = result[i];
-		
+
 		// return the correctly sized array
 		return correct;
 	}
