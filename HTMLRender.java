@@ -22,23 +22,20 @@ import java.util.Scanner;
  *
  *	@author Rishi Salvi
  *	@since 11/20/23
- *	@version 
  */
 public class HTMLRender {
 	
 	// the array holding all the tokens of the HTML file
-	//private String [] tokens;
-	//private final int TOKENS_SIZE = 100000;	// size of array
 	private ArrayList<String> tokens; 
 
 	// SimpleHtmlRenderer fields
 	private SimpleHtmlRenderer render;
 	private HtmlPrinter browser;
 	
+	// determines the current priniting state 
 	private enum TextState { NONE, BOLD, ITALIC, HEADING };
-	// the current printing state
-	private TextState state;
-	private int lineSize;
+	private TextState state; // holds current printing state
+	private int lineSize; // how many characters the line is currently
 		
 	public HTMLRender() {
 		// Initialize token array
@@ -52,17 +49,37 @@ public class HTMLRender {
 		browser = render.getHtmlPrinter();
 	}
 	
-	
+	/**
+	 * passes on parameters to method if they are provided; otherwise calls the 
+	 * overriden method that prints out the default, prewritten code
+	 */
 	public static void main(String[] args) {
 		HTMLRender hf = new HTMLRender();
 		if (args.length > 0)
 			hf.run(args[0]);
-		else
+		else // no arguments provided (default)
 			hf.run(); 
 	}
 	
+	/**
+	 * responsible for controlling the program
+	 * two parts - tokenizes the file and then deals with said tokens
+	 * @param example	the name of the file to be tokenized (ex. example7.html)
+	 */
 	public void run(String example){
-		Scanner scan = FileUtils.openToRead(example);
+		readFile(example);
+		handleArray();
+	}
+
+	/**
+	 * responsible for reading the file, tokenizing it, and then adding tokens 
+	 * to ArrayList
+	 * makes a Scanner using FileUtils and has a while-loop that runs the duration
+	 * of the file, tokenizing each individual line, and adding them to an ArrayList
+	 * @param fileName	the name of the file to be tokenized (ex. example7.html)
+	 */
+	public void readFile(String fileName){
+		Scanner scan = FileUtils.openToRead(fileName);
 		HTMLUtilities hu = new HTMLUtilities(); 
 		while (scan.hasNext()){
 			String[] current = hu.tokenizeHTMLString(scan.nextLine());
@@ -70,7 +87,20 @@ public class HTMLRender {
 				tokens.add(current[i]);
 			}
 		}
+	}
 
+	/**
+	 * decides what to do with each individual token
+	 * has a while-loop that runs the duration of the ArrayList and makes multiple checks
+	 * checks if token is a tag (using isTag() method))
+	 * checks if token is supposed to be preformatted text (has a nested while-loop)
+	 * if token is to be printed, checks line length to make sure text can fit on 
+	 * line (otherwise goes onto next) and then prints it out to the appropriate
+	 * text type (bold, italic)
+	 * checks if it is a header to call printHeading() method, as there are 6 cases
+	 * in the heading TextState
+	 */
+	public void handleArray(){
 		int j = 0;
 		while(j < tokens.size()){
 			String current = tokens.get(j);
@@ -89,42 +119,23 @@ public class HTMLRender {
 					if (state == TextState.HEADING)
 						j = printHeading(j - 1); // need to get heading type
 					else{
-						if (lineSize + current.length() < 80){
-							if (lineSize == 0 ||
-							   (current.length() == 1 && !Character.isLetterOrDigit(current.charAt(0)))){
-								lineSize += current.length();
+						if (lineSize + current.length() < 80){ // text fits in line
+							if (lineSize != 0 && // if not start of a new line or punctuation 
+							   !(current.length() == 1 && !Character.isLetterOrDigit(current.charAt(0)))){
+								current = " " + current; // +1 for space
 							}
-							else{
-								current = " " + current;
-								lineSize += current.length(); // +1 for space
-							}
-							if (state == TextState.NONE)
-								browser.print(current);
-							else if (state == TextState.ITALIC)
-								browser.printItalic(current);
-							else
-								browser.printBold(current);
 						}
-						else{
-							int overflowAmt = Math.max(1, 80 - lineSize);
-							String overflow = current.substring(0, overflowAmt - 1); // -1 for space
-							if (state == TextState.NONE){
-								browser.print(" " + overflow);
-								browser.println();
-								browser.print(current.substring(overflowAmt - 1));
-							}
-							else if (state == TextState.ITALIC){
-								browser.printItalic(" " + overflow);
-								browser.println();
-								browser.printItalic(current.substring(overflowAmt - 1));
-							}
-							else{
-								browser.printBold(" " + overflow);
-								browser.println();
-								browser.printBold(current.substring(overflowAmt - 1));
-							}
-							lineSize = current.length() - (overflowAmt - 1);
+						else{ // text doesn't fit in line
+							browser.println();
+							lineSize = 0; 
 						}
+						lineSize += current.length();
+						if (state == TextState.NONE)
+							browser.print(current);
+						else if (state == TextState.ITALIC)
+							browser.printItalic(current);
+						else
+							browser.printBold(current);
 					}
 				}
 			}
@@ -132,7 +143,16 @@ public class HTMLRender {
 		}
 	}
 
-
+	/**
+	 * checks if token is a tag and if so, does appropriate action
+	 * multiple if-statements that check for each tag
+	 * notable ones:
+	 * 		<b>, <i>, <h#> - change the state field to BOLD, ITALIC, HEADING
+	 * 		<p>, </p> - print a line break
+	 * 		</ - change state field back to NONE
+	 * @param check		the token to be checked
+	 * @return 			returns true if any of the if-conditions are net, false if none
+	 */
 	public boolean isTag(String check){
 		if (check.indexOf("html") > -1 || 
 		    check.indexOf("body") > -1){}
@@ -150,8 +170,7 @@ public class HTMLRender {
 		}
 		else if (check.equalsIgnoreCase("<p>") ||
 				 check.equalsIgnoreCase("</p>")){
-			browser.println(); 
-			browser.println();
+			browser.printBreak(); 
 			lineSize = 0;
 		}
 		else if (check.equalsIgnoreCase("<b>"))
@@ -167,13 +186,59 @@ public class HTMLRender {
 		return true; // something above is met
 	}
 
+	/**
+	 * once heading start tag is located, deals with printing out the rest of heading
+	 * determines max line length depending on heading type
+	 * until end tag is found, it moves down the ArrayList and prints out each token
+	 * @param tokenNum		the tag that indicates the start of a header (<h#>)
+	 * @return				the index at which the end tag of the header is located
+	 */
+	public int printHeading(int tokenNum){
+		lineSize = 0; // resets line length
+		String headingType = tokens.get(tokenNum);
+		int size = Integer.parseInt("" + headingType.charAt(2)); // get the number in the tag
+		int maxLength = lineLength(size);
+		tokenNum++; // don't print the tag
+		String current = tokens.get(tokenNum);
+
+		while (current.indexOf("/") == -1){ // until </h#> is found
+			if (lineSize + current.length() < maxLength){
+				if (lineSize != 0 && // if not start of line or punctuation
+				   !(current.length() == 1 && !Character.isLetterOrDigit(current.charAt(0))))
+					current = " " + current; // +1 for space
+			}
+			else{
+				browser.println(); // new line
+				lineSize = 0; 
+			}
+			lineSize += current.length();
+			printHeadingLine(current, headingType);
+			tokenNum++; 
+			current = tokens.get(tokenNum);
+		}
+		browser.printBreak(); // starts text on next line
+		state = TextState.NONE; // no longer a heading
+		return tokenNum; 	
+	}
+
+	/**
+	 * gets the max line length depending on the headingSize
+	 * @param headingSize		the int following the heading tag that 
+	 * 							determines the heading type
+	 * @return					the maximum line length
+	 */
 	public int lineLength(int headingSize){
-		if (headingSize <= 3)
+		if (headingSize <= 3) // h1, h2, h3
 			return 30 + 10 * headingSize;
-		else
+		else // h4, h5, h6
 			return 20 * headingSize; 
 	}
 
+	/**
+	 * prints the token depending on the appropriate token size
+	 * @param output		the token to be printed
+	 * @param tokenType		the int value of the heading type (ex. 3)
+	 */
 	public void printHeadingLine(String output, String tokenType){
 		if (tokenType.indexOf("1") > -1)
 			browser.printHeading1(output);
@@ -189,43 +254,9 @@ public class HTMLRender {
 			browser.printHeading6(output);
 	}
 
-	public int printHeading(int tokenNum){
-		lineSize = 0; 
-		String headingType = tokens.get(tokenNum);
-		int size = Integer.parseInt("" + headingType.charAt(2));
-		int maxLength = lineLength(size);
-		tokenNum++; // don't print the tag
-		String current = tokens.get(tokenNum);
-		String end = headingType.charAt(0) + "/" + headingType.substring(1);
-
-		while (current.indexOf("/") == -1){
-			if (lineSize + current.length() < maxLength){
-				if (lineSize == 0 ||
-				   (current.length() == 1 && !Character.isLetterOrDigit(current.charAt(0)))){
-					lineSize += current.length();
-				}
-				else{
-					current = " " + current;
-					lineSize += current.length(); // +1 for space
-				}
-				printHeadingLine(current, headingType);
-			}
-			else{
-				int overflowAmt = Math.max(1, maxLength - lineSize);
-				String overflow = current.substring(0, overflowAmt - 1); // -1 for space
-				printHeadingLine(" " + overflow, headingType);
-				browser.println();
-				printHeadingLine(current.substring(overflowAmt - 1), headingType);
-				lineSize = current.length() - (overflowAmt - 1);
-			}
-			tokenNum++; 
-			current = tokens.get(tokenNum);
-		}
-		browser.printBreak();
-		state = TextState.NONE;
-		return tokenNum; 	
-	}
-
+	/**
+	 * to print errors in case the user does not provide an argument at runtime
+	 */
 	public void run() {
 		// Sample renderings from HtmlPrinter class
 		
